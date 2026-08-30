@@ -3,3 +3,5 @@ bin/
 # markitodown copy of Resume and assignment
 Resume-Doumaux.md
 SWE_take-home-assignment.md
+node_modules/
+dist/
