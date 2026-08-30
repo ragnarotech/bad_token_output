@@ -65,6 +65,9 @@ export class Simulation {
     this.emitRequests(m);
     this.expireQueues(m);
     this.promote();
+    this.runPrefill(dt, m);
+    this.runDecode(dt, m);
+    this.runWatchdog(m);
     this.finalizeMetrics(m, dt);
     this.history.push(m);
     if (this.history.length > HISTORY_LIMIT) this.history.splice(0, 50_000);
@@ -175,6 +178,70 @@ export class Simulation {
       r.phase = 'prefilling';
       r.phaseEnteredAt = this.simTime;
       this.prefilling.push(r);
+    }
+  }
+
+  private attributeComputed(r: SimRequest, tokens: number, m: TickMetrics): void {
+    if (r.clientAbandonedAt === null) m.computedLiveTok += tokens;
+    else m.computedGhostTok += tokens;
+  }
+
+  private runPrefill(dt: number, m: TickMetrics): void {
+    if (this.prefilling.length === 0) return;
+    const capacity =
+      this.dials.prefillServers * this.constants.prefillTokPerSecPerServer * dt;
+    const share = capacity / this.prefilling.length;
+    for (let i = this.prefilling.length - 1; i >= 0; i--) {
+      const r = this.prefilling[i];
+      const applied = Math.min(share, r.promptTokens - r.prefillDoneTok);
+      r.prefillDoneTok += applied;
+      this.attributeComputed(r, applied, m);
+      if (r.prefillDoneTok >= r.promptTokens) {
+        this.prefilling.splice(i, 1);
+        r.phase = 'decoding';
+        r.phaseEnteredAt = this.simTime;
+        r.ttftSec = this.simTime - r.createdAt;
+        if (r.clientAbandonedAt === null) m.ttftSamples.push(r.ttftSec);
+        this.decoding.push(r);
+      }
+    }
+  }
+
+  private runDecode(dt: number, m: TickMetrics): void {
+    if (this.decoding.length === 0) return;
+    const capacity =
+      this.decodeServers * this.constants.decodeTokPerSecPerServer * dt;
+    const share = capacity / this.decoding.length;
+    for (let i = this.decoding.length - 1; i >= 0; i--) {
+      const r = this.decoding[i];
+      const applied = Math.min(share, r.outputTokens - r.decodeDoneTok);
+      r.decodeDoneTok += applied;
+      this.attributeComputed(r, applied, m);
+      if (r.decodeDoneTok >= r.outputTokens) {
+        this.decoding.splice(i, 1);
+        r.phase = 'delivered';
+        if (r.clientAbandonedAt === null) {
+          m.deliveredTok += r.promptTokens + r.outputTokens;
+          const decodeSec = this.simTime - r.phaseEnteredAt;
+          m.tpotSamples.push(decodeSec / Math.max(1, r.outputTokens));
+          this.completeUser(this.users[r.userId]);
+        }
+        // abandoned: tokens burned for a ghost; the user has already moved on
+      }
+    }
+  }
+
+  private runWatchdog(m: TickMetrics): void {
+    const lists = [this.decodeQueue, this.prefillQueue, this.prefilling, this.decoding];
+    for (const list of lists) {
+      for (const r of list) {
+        if (r.clientAbandonedAt !== null || r.ttftSec !== null) continue; // v1: TTFT watchdog
+        if (this.simTime - r.createdAt > this.dials.clientTimeoutSec) {
+          r.clientAbandonedAt = this.simTime;
+          m.clientAbandons += 1;
+          this.scheduleRetry(this.users[r.userId], r, m);
+        }
+      }
     }
   }
 
