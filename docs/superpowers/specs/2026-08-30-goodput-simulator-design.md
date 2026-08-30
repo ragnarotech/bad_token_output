@@ -127,7 +127,10 @@ docs and hope)
 
 ### Frozen constants
 GPU budget; slots per decode server; slots per prefill server; both queue
-timeouts = 30s.
+timeouts = 30s. Exact values for GPU budget and slots-per-server are
+calibrated during the engine-validation step (Section 7): they are chosen so
+the three qualitative invariants emerge at realistic dial settings, then
+frozen.
 
 ### Outputs
 Headline **Goodput %** (delivered tokens ÷ tokens GPUs actually spent), big and
