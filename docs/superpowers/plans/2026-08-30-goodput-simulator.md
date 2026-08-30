@@ -15,7 +15,8 @@
 - `src/engine/` and `src/scenarios/` are pure TS: **zero runtime dependencies, no DOM/React imports**.
 - Fixed timestep `dt = 0.25` sim-seconds everywhere; never vary it.
 - All randomness flows through the seeded RNG owned by `Simulation`; same seed ⇒ byte-identical history.
-- Frozen constants (spec §4) live only in `DEFAULT_CONSTANTS`; queue timeouts are 30s; prefill server costs 1.5 GPUs, decode 1.
+- Frozen constants (spec §4) live only in `DEFAULT_CONSTANTS`; queue timeouts are 30s; prefill server costs 2.5 GPUs, decode 1; slots-per-server is the SAME value for both roles (makes 'equal server counts' the easy answer while leaving the real P:D optimum discoverable); client max retries = 10 (Claude Code default) — after that the user gives up on the logical request.
+- UI dial ranges are bounded for usability and engine perf: users ≤ 150 (+60 surge), admission slider ≤ 300, prefill servers ≤ 9.
 - Oblivious-server rule: once admitted, a request never reacts to client disconnect (spec §3.3).
 - Client watchdog triggers on TTFT only in v1 (no streaming toggle unless stretch time remains).
 - UI dependencies limited to react, react-dom, recharts. No CSS framework; hand-written CSS.
@@ -283,17 +284,19 @@ export interface Constants {
   slotsPerPrefillServer: number;
   slotsPerDecodeServer: number;
   queueTimeoutSec: number;
+  clientMaxRetries: number;
   prefillTokPerSecPerServer: number;
   decodeTokPerSecPerServer: number;
 }
 
 export const DEFAULT_CONSTANTS: Constants = {
   gpuBudget: 24,
-  gpusPerPrefillServer: 1.5,
+  gpusPerPrefillServer: 2.5,
   gpusPerDecodeServer: 1,
-  slotsPerPrefillServer: 4,
+  slotsPerPrefillServer: 8,
   slotsPerDecodeServer: 8,
   queueTimeoutSec: 30,
+  clientMaxRetries: 10,
   prefillTokPerSecPerServer: 25_000,
   decodeTokPerSecPerServer: 1_500,
 };
@@ -343,6 +346,7 @@ export interface TickMetrics {
   deadPrefillQueue: number;
   clientAbandons: number;
   retriesScheduled: number;
+  giveUps: number;
   decodeQueueDepth: number;
   prefillQueueDepth: number;
   decodeSlotsHeld: number;
@@ -439,16 +443,16 @@ export const BASE_DIALS: Dials = {
   retryStrategy: 'aggressive',
   numUsers: 8,
   admissionLimit: 999,
-  prefillServers: 8,
+  prefillServers: 6,
 };
 
 describe('Simulation core', () => {
-  it('derives decode servers from GPU budget at 1.5:1', () => {
-    const sim = new Simulation({ ...BASE_DIALS, prefillServers: 8 }, 1);
-    // 24 - 8*1.5 = 12 GPUs -> 12 decode servers * 8 slots
-    expect(sim.decodeServers).toBe(12);
-    expect(sim.decodeSlotsTotal).toBe(96);
-    expect(sim.prefillSlotsTotal).toBe(32);
+  it('derives decode servers from GPU budget at 2.5:1', () => {
+    const sim = new Simulation({ ...BASE_DIALS, prefillServers: 6 }, 1);
+    // 24 - 6*2.5 = 9 GPUs -> 9 decode servers * 8 slots
+    expect(sim.decodeServers).toBe(9);
+    expect(sim.decodeSlotsTotal).toBe(72);
+    expect(sim.prefillSlotsTotal).toBe(48);
   });
 
   it('active users issue requests into the pipeline on first tick', () => {
@@ -510,7 +514,7 @@ function newTickMetrics(t: number, sim: Simulation): TickMetrics {
     t,
     computedLiveTok: 0, computedGhostTok: 0, theoreticalMaxTok: 0, deliveredTok: 0,
     rejectedAdmission: 0, deadDecodeQueue: 0, deadPrefillQueue: 0,
-    clientAbandons: 0, retriesScheduled: 0,
+    clientAbandons: 0, retriesScheduled: 0, giveUps: 0,
     decodeQueueDepth: 0, prefillQueueDepth: 0,
     decodeSlotsHeld: 0, decodeSlotsTotal: sim.decodeSlotsTotal,
     prefillSlotsBusy: 0, prefillSlotsTotal: sim.prefillSlotsTotal,
@@ -606,6 +610,12 @@ export class Simulation {
     u: UserAgent, req: { promptTokens: number; outputTokens: number }, m: TickMetrics,
   ): void {
     u.attempt += 1;
+    if (u.attempt > this.constants.clientMaxRetries) {
+      // Claude Code default: 10 retries, then the client gives up on this request.
+      m.giveUps += 1;
+      this.completeUser(u); // user moves on to new work after think time
+      return;
+    }
     u.retryPromptTokens = req.promptTokens;
     u.retryOutputTokens = req.outputTokens;
     const capSec = this.dials.retryStrategy === 'aggressive' ? 10 : 300;
@@ -694,7 +704,7 @@ import { DEFAULT_CONSTANTS } from './types';
 
 const TINY: Constants = {
   ...DEFAULT_CONSTANTS,
-  gpuBudget: 4,
+  gpuBudget: 6,
   slotsPerDecodeServer: 2,
   slotsPerPrefillServer: 1,
   prefillTokPerSecPerServer: 0, // freeze compute so requests sit in place
@@ -703,7 +713,7 @@ const TINY: Constants = {
 
 const DIALS: Dials = {
   workload: 'agentic-dev', clientTimeoutSec: 9_999, retryStrategy: 'patient',
-  numUsers: 5, admissionLimit: 999, prefillServers: 2, // 2*1.5=3 GPUs -> 1 decode server
+  numUsers: 5, admissionLimit: 999, prefillServers: 2, // 2*2.5=5 of 6 GPUs -> 1 decode server
 };
 
 describe('pipeline promotion and timeouts', () => {
@@ -728,7 +738,7 @@ describe('pipeline promotion and timeouts', () => {
   it('kills prefill-queue waiters after 30s, freeing their decode slots', () => {
     // prefillServers 0 -> no prefill slots; all promoted requests stall in prefillQueue
     const sim = new Simulation({ ...DIALS, prefillServers: 0, numUsers: 3 }, 1, TINY);
-    // gpuBudget 4 -> 4 decode servers * 2 slots = 8 slots; all 3 land in prefillQueue
+    // gpuBudget 6 -> 6 decode servers * 2 slots = 12 slots; all 3 land in prefillQueue
     sim.tick(0.25);
     expect(sim.prefillQueue.length).toBe(3);
     let dead = 0;
@@ -1007,7 +1017,7 @@ function mk(t: number, delivered: number, live: number, ghost: number): TickMetr
   return {
     t, deliveredTok: delivered, computedLiveTok: live, computedGhostTok: ghost,
     theoreticalMaxTok: 0, rejectedAdmission: 0, deadDecodeQueue: 0, deadPrefillQueue: 0,
-    clientAbandons: 0, retriesScheduled: 0, decodeQueueDepth: 0, prefillQueueDepth: 0,
+    clientAbandons: 0, retriesScheduled: 0, giveUps: 0, decodeQueueDepth: 0, prefillQueueDepth: 0,
     decodeSlotsHeld: 0, decodeSlotsTotal: 0, prefillSlotsBusy: 0, prefillSlotsTotal: 0,
     activeUsers: 0, ttftSamples: [], tpotSamples: [],
   };
@@ -1102,7 +1112,7 @@ import type { Dials } from './types';
 const H = 3600;
 const RUSH_DIALS: Dials = {
   workload: 'agentic-dev', clientTimeoutSec: 120, retryStrategy: 'aggressive',
-  numUsers: 0, admissionLimit: 100_000, prefillServers: 8,
+  numUsers: 0, admissionLimit: 100_000, prefillServers: 6,
 };
 
 function runDay(dials: Dials, hours: number, curve: (t: number) => number): Simulation {
@@ -1135,6 +1145,15 @@ describe('collapse invariants (spec §7) — the gate before any UI', () => {
     const sim = runDay({ ...RUSH_DIALS, admissionLimit: 60 }, 15, rushHourUsers);
     expect(goodputPctWindow(sim.history, 9 * H, 15 * H)).toBeGreaterThan(60);
   }, 120_000);
+
+  it('inv4: P:D split is maximizable — gated agentic-dev rewards more prefill', () => {
+    // The 'CEO wants TPMs' check: equal-ish splits are the easy answer,
+    // but prefill-heavy delivers more useful tokens under huge-prompt load.
+    const sum = (s: Simulation) => s.history.reduce((a, m) => a + m.deliveredTok, 0);
+    const lo = runDay({ ...RUSH_DIALS, admissionLimit: 60, prefillServers: 4 }, 15, rushHourUsers);
+    const hi = runDay({ ...RUSH_DIALS, admissionLimit: 60, prefillServers: 7 }, 15, rushHourUsers);
+    expect(sum(hi)).toBeGreaterThan(sum(lo));
+  }, 240_000);
 });
 ```
 
@@ -1142,7 +1161,7 @@ describe('collapse invariants (spec §7) — the gate before any UI', () => {
 
 Run: `npx vitest run src/engine/collapse.test.ts`
 
-If any invariant fails, iterate on (in order of preference): `DEFAULT_CONSTANTS.prefillTokPerSecPerServer` / `decodeTokPerSecPerServer`, workload sampling exponent (0.35 in `workloads.ts`), rush-hour peak user count (80), the gated `admissionLimit: 60`, think-time ranges. Re-run engine unit tests after every constants change (`npx vitest run src/engine`) — ranges in workload tests may need matching updates ONLY if a distribution changes. Do not weaken the invariant thresholds by more than ±10 points; if you cannot make collapse emerge, STOP and report — the model has a structural problem the human partner needs to see.
+If any invariant fails (inv4 included — the P:D optimum must reward prefill-heavy splits under agentic-dev, per review), iterate on (in order of preference): `DEFAULT_CONSTANTS.prefillTokPerSecPerServer` / `decodeTokPerSecPerServer`, workload sampling exponent (0.35 in `workloads.ts`), rush-hour peak user count (80), the gated `admissionLimit: 60`, think-time ranges. Re-run engine unit tests after every constants change (`npx vitest run src/engine`) — ranges in workload tests may need matching updates ONLY if a distribution changes. Do not weaken the invariant thresholds by more than ±10 points; if you cannot make collapse emerge, STOP and report — the model has a structural problem the human partner needs to see.
 
 If inv2/inv3 runtime exceeds ~60s each, profile before optimizing; the likely fix is reducing per-tick array garbage (reuse `ttftSamples` arrays only if needed).
 
@@ -1291,16 +1310,17 @@ export const rushHour: Scenario = {
   defaultSpeed: 480, // 24h in 3 wall-minutes
   initialDials: {
     workload: 'agentic-dev', clientTimeoutSec: 120, retryStrategy: 'aggressive',
-    numUsers: 0, admissionLimit: 100_000, prefillServers: 8,
+    numUsers: 0, admissionLimit: 100_000, prefillServers: 6,
   },
   loadCurve: rushHourUsers,
   narrator: [
     { id: 'welcome', text: 'Midnight. A few cron jobs hum along. Watch the pipeline: requests take a decode slot FIRST, then wait for prefill. Remember that.', when: ({ t }) => t > 60 },
     { id: 'ramp', text: '9 AM. The org logs on. Every request is an agentic-dev monster: prompts up to 1M tokens, outputs tiny.', when: ({ t }) => t > 9 * H },
     { id: 'oversub', text: '10 AM. Demand now exceeds supply — but goodput is still decent. Are we fine? We are not fine.', when: ({ t }) => t > 10 * H },
+    { id: 'tpm', text: 'The TPM counter is enormous and the officials are delighted. Look closer: only tokens that REACH a user count. The rest is very expensive heat.', when: ({ t, sim }) => t > 10.75 * H && rollingGoodputPct(sim.history, 600) < 60 },
     { id: 'collapse', text: 'Nothing is broken. Everything is busy. Goodput is cratering while every GPU reads 100%. Welcome to the worst kind of outage.', when: ({ t, sim }) => t > 10.5 * H && rollingGoodputPct(sim.history, 600) < 25 },
     { id: 'zombies', text: 'Look at the waste band: those are tokens computed for clients that hung up long ago. The queues are full of ghosts — and their retries.', when: ({ t, sim }) => t > 11 * H && rollingGoodputPct(sim.history, 600) < 20 },
-    { id: 'tried-prefill', text: 'More prefill servers? You just took decode capacity to feed the same stampede. The bottleneck is not capacity — it is admission.', when: ({ sim }) => sim.dials.prefillServers > 10 },
+    { id: 'tried-prefill', text: 'More prefill servers? You just took decode capacity to feed the same stampede. The bottleneck is not capacity — it is admission.', when: ({ sim }) => sim.dials.prefillServers > 7 },
     { id: 'tried-timeout', text: 'Longer client timeouts? Now they hold on longer before abandoning — and the zombie parade grows behind them. You cannot out-wait a stampede.', when: ({ sim }) => sim.dials.clientTimeoutSec > 240 },
     { id: 'gate', text: 'THERE it is. Failing cheap at the front door instead of expensive in the pipeline. Fewer requests in, more tokens out.', when: ({ t, sim }) => t > 10 * H && sim.dials.admissionLimit < 100 },
     { id: 'exodus', text: '3 PM. People are giving up and going home. In production, this was our fix. That is not a fix.', when: ({ t }) => t > 15 * H },
@@ -1330,7 +1350,7 @@ export const spike: Scenario = {
   defaultSpeed: 15,
   initialDials: {
     workload: 'agentic-dev', clientTimeoutSec: 60, retryStrategy: 'aggressive',
-    numUsers: 0, admissionLimit: 100_000, prefillServers: 8,
+    numUsers: 0, admissionLimit: 100_000, prefillServers: 6,
   },
   loadCurve: spikeUsers,
   narrator: [
@@ -1357,7 +1377,7 @@ export const freePlay: Scenario = {
   defaultSpeed: 30,
   initialDials: {
     workload: 'agentic-dev', clientTimeoutSec: 120, retryStrategy: 'aggressive',
-    numUsers: 40, admissionLimit: 100_000, prefillServers: 8,
+    numUsers: 40, admissionLimit: 100_000, prefillServers: 6,
   },
   loadCurve: null,
   narrator: [
@@ -1722,20 +1742,25 @@ git commit -m "feat(ui): simulation driver hook, header bar, live goodput headli
 - Produces:
 ```tsx
 function DialsRail(p: { dials: Dials; decodeServers: number; isFreePlay: boolean; onChange(patch: Partial<Dials>): void; onSurge(): void }): JSX.Element
-function GoodputHeadline(p: { pct: number }): JSX.Element
+function GoodputHeadline(p: { pct: number; usefulTpm: number; theoreticalTpm: number }): JSX.Element
 ```
 
 - [ ] **Step 1: Implement**
 
 `src/ui/components/GoodputHeadline.tsx`:
 ```tsx
-export function GoodputHeadline({ pct }: { pct: number }) {
+import { fmtTok } from '../format';
+
+interface Props { pct: number; usefulTpm: number; theoreticalTpm: number }
+
+export function GoodputHeadline({ pct, usefulTpm, theoreticalTpm }: Props) {
   const tone = pct >= 70 ? 'good' : pct >= 35 ? 'warn' : 'bad';
   return (
     <div className={`goodput-headline ${tone}`}>
       <span className="label">GOODPUT</span>
       <span className="value">{pct.toFixed(0)}%</span>
-      <span className="sub">delivered tokens ÷ tokens the GPUs actually spent (60s window)</span>
+      <span className="tpm">useful TPM {fmtTok(usefulTpm)} <em>of {fmtTok(theoreticalTpm)} theoretical</em></span>
+      <span className="sub">delivered tokens ÷ tokens the GPUs actually spent (60s window) — only tokens that reach a user count</span>
     </div>
   );
 }
@@ -1767,9 +1792,9 @@ export function DialsRail({ dials, decodeServers, isFreePlay, onChange, onSurge 
         </label>
         <label>
           P:D split — {dials.prefillServers} prefill / {decodeServers} decode
-          <input type="range" min={0} max={14} step={1} value={dials.prefillServers}
+          <input type="range" min={0} max={9} step={1} value={dials.prefillServers}
             onChange={(e) => onChange({ prefillServers: Number(e.target.value) })} />
-          <span className="hint">prefill costs 1.5 GPUs, decode 1 — fixed budget</span>
+          <span className="hint">prefill costs 2.5 GPUs, decode 1 — fixed budget</span>
         </label>
       </section>
       <section>
@@ -1811,7 +1836,7 @@ export function DialsRail({ dials, decodeServers, isFreePlay, onChange, onSurge 
 }
 ```
 
-Update `src/App.tsx` to a grid layout mounting `DialsRail` (left) and `GoodputHeadline` (top of main), passing `api.sim.dials`, `api.sim.decodeServers`, `api.scenario.id === 'free-play'`, `api.changeDials`, `api.surge`. Add to `src/index.css` a `.console` grid (`grid-template-columns: 280px 1fr`), rail styling, and headline tones (`.good { color:#3fb950 } .warn { color:#d29922 } .bad { color:#f85149 }`).
+Update `src/App.tsx` to a grid layout mounting `DialsRail` (left) and `GoodputHeadline` (top of main), passing `api.sim.dials`, `api.sim.decodeServers`, `api.scenario.id === 'free-play'`, `api.changeDials`, `api.surge`. Compute headline TPMs in App: `usefulTpm` = sum of `deliveredTok` over the trailing 60 sim-seconds of `api.sim.history` (a 60s window IS per-minute); `theoreticalTpm` = `last.theoreticalMaxTok * 240` (per-0.25s-tick × 240 = per minute); both 0 when history is empty. Add to `src/index.css` a `.console` grid (`grid-template-columns: 280px 1fr`), rail styling, and headline tones (`.good { color:#3fb950 } .warn { color:#d29922 } .bad { color:#f85149 }`).
 
 - [ ] **Step 2: Verify**
 
@@ -1842,7 +1867,7 @@ interface ChartPoint {
   t: number; liveTokPerSec: number; ghostTokPerSec: number; idleTokPerSec: number;
   goodputPct: number; deliveredTokPerSec: number; activeUsers: number;
   ttftP50: number; ttftP90: number;
-  shallow529: number; deep529: number; abandons: number; retries: number;
+  shallow529: number; deep529: number; abandons: number; retries: number; giveUps: number;
   decodeQueueDepth: number; prefillQueueDepth: number;
 }
 function bucketize(history: TickMetrics[], bucketSec: number, maxBuckets: number): ChartPoint[]
@@ -1861,7 +1886,7 @@ function mk(t: number): TickMetrics {
   return {
     t, computedLiveTok: 25, computedGhostTok: 25, theoreticalMaxTok: 100, deliveredTok: 10,
     rejectedAdmission: 1, deadDecodeQueue: 0, deadPrefillQueue: 1, clientAbandons: 0,
-    retriesScheduled: 2, decodeQueueDepth: 5, prefillQueueDepth: 3, decodeSlotsHeld: 4,
+    retriesScheduled: 2, giveUps: 0, decodeQueueDepth: 5, prefillQueueDepth: 3, decodeSlotsHeld: 4,
     decodeSlotsTotal: 8, prefillSlotsBusy: 2, prefillSlotsTotal: 4, activeUsers: 10,
     ttftSamples: [t], tpotSamples: [],
   };
@@ -1906,7 +1931,7 @@ export interface ChartPoint {
   liveTokPerSec: number; ghostTokPerSec: number; idleTokPerSec: number;
   goodputPct: number; deliveredTokPerSec: number; activeUsers: number;
   ttftP50: number; ttftP90: number;
-  shallow529: number; deep529: number; abandons: number; retries: number;
+  shallow529: number; deep529: number; abandons: number; retries: number; giveUps: number;
   decodeQueueDepth: number; prefillQueueDepth: number;
 }
 
@@ -1918,14 +1943,14 @@ export function bucketize(
   const start = Math.max(0, history.length - perBucket * maxBuckets);
   for (let i = start; i + perBucket <= history.length; i += perBucket) {
     let live = 0, ghost = 0, max = 0, delivered = 0, shallow = 0, deepDq = 0, deepPq = 0,
-      abandons = 0, retries = 0;
+      abandons = 0, retries = 0, giveUps = 0;
     const ttft: number[] = [];
     for (let j = i; j < i + perBucket; j++) {
       const m = history[j];
       live += m.computedLiveTok; ghost += m.computedGhostTok; max += m.theoreticalMaxTok;
       delivered += m.deliveredTok; shallow += m.rejectedAdmission;
       deepDq += m.deadDecodeQueue; deepPq += m.deadPrefillQueue;
-      abandons += m.clientAbandons; retries += m.retriesScheduled;
+      abandons += m.clientAbandons; retries += m.retriesScheduled; giveUps += m.giveUps;
       ttft.push(...m.ttftSamples);
     }
     const last = history[i + perBucket - 1];
@@ -1939,7 +1964,7 @@ export function bucketize(
       deliveredTokPerSec: delivered / bucketSec,
       activeUsers: last.activeUsers,
       ttftP50: percentile(ttft, 50), ttftP90: percentile(ttft, 90),
-      shallow529: shallow, deep529: deepDq + deepPq, abandons, retries,
+      shallow529: shallow, deep529: deepDq + deepPq, abandons, retries, giveUps,
       decodeQueueDepth: last.decodeQueueDepth, prefillQueueDepth: last.prefillQueueDepth,
     });
   }
@@ -2044,7 +2069,8 @@ export function ChartsPanel({ points, ghost }: Props) {
               <XAxis dataKey="t" tickFormatter={fmtT} /><YAxis /><Tooltip /><Legend />
               <Bar stackId="f" dataKey="shallow529" name="529 at gate (cheap)" fill="#58a6ff" />
               <Bar stackId="f" dataKey="deep529" name="deep 529 (waste)" fill="#f85149" />
-              <Bar stackId="f" dataKey="abandons" name="client gave up" fill="#d29922" />
+              <Bar stackId="f" dataKey="abandons" name="client abandoned (timeout)" fill="#d29922" />
+              <Bar stackId="f" dataKey="giveUps" name="gave up (10 retries)" fill="#8b949e" />
             </BarChart>
           </ResponsiveContainer>
         </div>

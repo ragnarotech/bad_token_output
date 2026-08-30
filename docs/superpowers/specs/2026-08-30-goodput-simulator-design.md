@@ -52,7 +52,7 @@ per-request animated dots (explicit scope control).
 
 ### 3.2 Capacity model
 - Fixed GPU budget (e.g. 24 GPUs).
-- P:D slider partitions it: **prefill server = 1.5 GPUs, decode server = 1 GPU.**
+- P:D slider partitions it (corrected in plan review from the earlier 1.5:1 estimate): **prefill server = 2.5 GPUs, decode server = 1 GPU.**
 - Frozen constants: slots per decode server, slots per prefill server.
 - **Shared-throughput rule:** a server's tok/s is divided equally among its
   occupied slots (8 requests on one decode server each stream at 1/8 speed).
@@ -122,11 +122,13 @@ docs and hope)
 | Dial | Notes |
 |---|---|
 | **Admission limit** | THE hero dial; max concurrent admitted; top of group, visually prominent |
-| P:D split | repartitions fixed GPU budget at 1.5:1 cost |
+| P:D split | repartitions fixed GPU budget at 2.5:1 cost — equal slots-per-server on both roles makes 'equal server counts' the easy answer, but the true optimum under agentic-dev is prefill-heavy and worth discovering: officials want max TPM, and only TPMs that reach users count |
 
 ### Frozen constants
-GPU budget; slots per decode server; slots per prefill server; both queue
-timeouts = 30s; **prefill tok/s and decode tok/s per server** (tied to
+GPU budget; slots per decode server; slots per prefill server (equal to the
+decode value by design); client max retries = 10 (the Claude Code default —
+where aggressive backoff bites; users who raised it to 1,000 existed but were
+the minority); both queue timeouts = 30s; **prefill tok/s and decode tok/s per server** (tied to
 model/vendor/hardware — not operator-tunable). Exact values for GPU budget,
 slots-per-server, and tok/s rates are calibrated during the engine-validation
 step (Section 7): they are chosen so the three qualitative invariants emerge
@@ -257,3 +259,4 @@ ops voice and is polishable late without code changes.
 - Best-practices adoption modeling: you can't set client dials, but comms
   shift user behavior slowly and partially.
 - Multi-tenant fairness / per-team rate limits (LiteLLM-gateway experience).
+- Per-user retry-cap overrides (the 1,000-retry power user vs the default-10 majority).
