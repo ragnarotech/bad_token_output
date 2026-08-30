@@ -428,7 +428,7 @@ git commit -m "feat(engine): seeded RNG, core types, workload presets"
 
 **Interfaces:**
 - Consumes: everything from Task 2.
-- Produces: `class Simulation` with: `constructor(dials: Dials, seed: number, constants?: Constants)`, `tick(dt: number): TickMetrics`, `setDials(patch: Partial<Dials>): void`, `setTargetActiveUsers(n: number | null): void`, `simTime: number`, `history: TickMetrics[]`, `readonly users: UserAgent[]`, public arrays `decodeQueue/prefillQueue/prefilling/decoding: SimRequest[]`, getters `decodeServers`, `decodeSlotsTotal`, `prefillSlotsTotal`, `admittedCount`, `activeUserTarget`. Later tasks extend `tick()` internals only — signatures above never change.
+- Produces: `class Simulation` with: `constructor(dials: Dials, seed: number, constants?: Constants)`, `tick(dt: number): TickMetrics`, `setDials(patch: Partial<Dials>): void`, `setTargetActiveUsers(n: number | null): void`, `simTime: number`, `history: TickMetrics[]`, `readonly users: UserAgent[]`, `totalGiveUps: number` (cumulative help-tickets counter), public arrays `decodeQueue/prefillQueue/prefilling/decoding: SimRequest[]`, getters `decodeServers`, `decodeSlotsTotal`, `prefillSlotsTotal`, `admittedCount`, `activeUserTarget`. Later tasks extend `tick()` internals only — signatures above never change.
 
 - [ ] **Step 1: Write failing tests**
 
@@ -525,6 +525,8 @@ function newTickMetrics(t: number, sim: Simulation): TickMetrics {
 
 export class Simulation {
   simTime = 0;
+  /** Cumulative give-ups: each one is a help ticket in the devops queue. */
+  totalGiveUps = 0;
   history: TickMetrics[] = [];
   readonly constants: Constants;
   dials: Dials;
@@ -612,7 +614,9 @@ export class Simulation {
     u.attempt += 1;
     if (u.attempt > this.constants.clientMaxRetries) {
       // Claude Code default: 10 retries, then the client gives up on this request.
+      // The user comes back from a meeting to a dead session -> a help ticket.
       m.giveUps += 1;
+      this.totalGiveUps += 1;
       this.completeUser(u); // user moves on to new work after think time
       return;
     }
@@ -1323,6 +1327,7 @@ export const rushHour: Scenario = {
     { id: 'tried-prefill', text: 'More prefill servers? You just took decode capacity to feed the same stampede. The bottleneck is not capacity — it is admission.', when: ({ sim }) => sim.dials.prefillServers > 7 },
     { id: 'tried-timeout', text: 'Longer client timeouts? Now they hold on longer before abandoning — and the zombie parade grows behind them. You cannot out-wait a stampede.', when: ({ sim }) => sim.dials.clientTimeoutSec > 240 },
     { id: 'gate', text: 'THERE it is. Failing cheap at the front door instead of expensive in the pipeline. Fewer requests in, more tokens out.', when: ({ t, sim }) => t > 10 * H && sim.dials.admissionLimit < 100 },
+    { id: 'tickets', text: 'Ticket queue check: users who kicked off agentic runs and left for meetings are coming back to dead sessions. Every one of those is a help ticket, and every ticket is devops time you are not spending fixing THIS.', when: ({ sim }) => sim.totalGiveUps > 25 },
     { id: 'exodus', text: '3 PM. People are giving up and going home. In production, this was our fix. That is not a fix.', when: ({ t }) => t > 15 * H },
     { id: 'close', text: 'Day over. Run it again — this time the dials are yours. Hint: the hero dial is the one that says no.', when: ({ t }) => t > 20 * H },
   ],
@@ -1742,7 +1747,7 @@ git commit -m "feat(ui): simulation driver hook, header bar, live goodput headli
 - Produces:
 ```tsx
 function DialsRail(p: { dials: Dials; decodeServers: number; isFreePlay: boolean; onChange(patch: Partial<Dials>): void; onSurge(): void }): JSX.Element
-function GoodputHeadline(p: { pct: number; usefulTpm: number; theoreticalTpm: number }): JSX.Element
+function GoodputHeadline(p: { pct: number; usefulTpm: number; theoreticalTpm: number; helpTickets: number }): JSX.Element
 ```
 
 - [ ] **Step 1: Implement**
@@ -1751,15 +1756,16 @@ function GoodputHeadline(p: { pct: number; usefulTpm: number; theoreticalTpm: nu
 ```tsx
 import { fmtTok } from '../format';
 
-interface Props { pct: number; usefulTpm: number; theoreticalTpm: number }
+interface Props { pct: number; usefulTpm: number; theoreticalTpm: number; helpTickets: number }
 
-export function GoodputHeadline({ pct, usefulTpm, theoreticalTpm }: Props) {
+export function GoodputHeadline({ pct, usefulTpm, theoreticalTpm, helpTickets }: Props) {
   const tone = pct >= 70 ? 'good' : pct >= 35 ? 'warn' : 'bad';
   return (
     <div className={`goodput-headline ${tone}`}>
       <span className="label">GOODPUT</span>
       <span className="value">{pct.toFixed(0)}%</span>
       <span className="tpm">useful TPM {fmtTok(usefulTpm)} <em>of {fmtTok(theoreticalTpm)} theoretical</em></span>
+      <span className={`tickets ${helpTickets > 0 ? 'warn' : ''}`} title="Sessions dead after 10 retries — each one is a user telling their agent 'continue' and filing a ticket">🎫 help tickets: {helpTickets}</span>
       <span className="sub">delivered tokens ÷ tokens the GPUs actually spent (60s window) — only tokens that reach a user count</span>
     </div>
   );
@@ -1836,7 +1842,7 @@ export function DialsRail({ dials, decodeServers, isFreePlay, onChange, onSurge 
 }
 ```
 
-Update `src/App.tsx` to a grid layout mounting `DialsRail` (left) and `GoodputHeadline` (top of main), passing `api.sim.dials`, `api.sim.decodeServers`, `api.scenario.id === 'free-play'`, `api.changeDials`, `api.surge`. Compute headline TPMs in App: `usefulTpm` = sum of `deliveredTok` over the trailing 60 sim-seconds of `api.sim.history` (a 60s window IS per-minute); `theoreticalTpm` = `last.theoreticalMaxTok * 240` (per-0.25s-tick × 240 = per minute); both 0 when history is empty. Add to `src/index.css` a `.console` grid (`grid-template-columns: 280px 1fr`), rail styling, and headline tones (`.good { color:#3fb950 } .warn { color:#d29922 } .bad { color:#f85149 }`).
+Update `src/App.tsx` to a grid layout mounting `DialsRail` (left) and `GoodputHeadline` (top of main), passing `api.sim.dials`, `api.sim.decodeServers`, `api.scenario.id === 'free-play'`, `api.changeDials`, `api.surge`. Compute headline TPMs in App: `usefulTpm` = sum of `deliveredTok` over the trailing 60 sim-seconds of `api.sim.history` (a 60s window IS per-minute); `theoreticalTpm` = `last.theoreticalMaxTok * 240` (per-0.25s-tick × 240 = per minute); both 0 when history is empty; pass `helpTickets={api.sim.totalGiveUps}`. Add to `src/index.css` a `.console` grid (`grid-template-columns: 280px 1fr`), rail styling, and headline tones (`.good { color:#3fb950 } .warn { color:#d29922 } .bad { color:#f85149 }`).
 
 - [ ] **Step 2: Verify**
 

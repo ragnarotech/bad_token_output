@@ -138,7 +138,11 @@ at realistic dial settings, then frozen.
 Headline **Goodput %** (delivered tokens ÷ tokens GPUs actually spent), big and
 color-coded. TPM in/out vs theoretical max. TTFT/TPOT. Deep-529 count (made it
 past the first gate) vs shallow. Wasted prefill tokens. Client
-failures/retries. Live queue depth + slot occupancy.
+failures/retries. Give-ups (client exhausted its 10 retries) surfaced as a
+cumulative **🎫 help-tickets counter**: each one is a user who fired off
+agentic work, left for a meeting, and came back to a dead session — a
+"continue" prompt for them, a ticket in the devops queue for you. The CEO
+reads TPM; devops reads tickets. Live queue depth + slot occupancy.
 
 ### Stretch #1 (only if inside ~5h): Streaming toggle
 Changes timeout semantics (non-streaming: client timeout covers queue + prefill
