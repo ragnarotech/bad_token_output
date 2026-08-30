@@ -113,24 +113,24 @@ deep (past first gate); retries in flight; active users.
 docs and hope)
 | Dial | Range/values |
 |---|---|
+| Workload preset | agentic-dev / chat — listed first: an organization *falls into* a workload behavior, and in a closed/air-gapped population there is no law-of-large-numbers smoothing toward an even mix; you get one org's skew, undiluted |
 | Client timeout | 30s ↔ 5min |
 | Retry strategy | aggressive (10s cap) / patient (5min cap) |
 | # users | slider |
-| Workload preset | agentic-dev / chat |
 
 ### Dials — Server config group (the ones you own)
 | Dial | Notes |
 |---|---|
 | **Admission limit** | THE hero dial; max concurrent admitted; top of group, visually prominent |
 | P:D split | repartitions fixed GPU budget at 1.5:1 cost |
-| Prefill tok/s, Decode tok/s | per-server rates (may ship as preset constants) |
 
 ### Frozen constants
 GPU budget; slots per decode server; slots per prefill server; both queue
-timeouts = 30s. Exact values for GPU budget and slots-per-server are
-calibrated during the engine-validation step (Section 7): they are chosen so
-the three qualitative invariants emerge at realistic dial settings, then
-frozen.
+timeouts = 30s; **prefill tok/s and decode tok/s per server** (tied to
+model/vendor/hardware — not operator-tunable). Exact values for GPU budget,
+slots-per-server, and tok/s rates are calibrated during the engine-validation
+step (Section 7): they are chosen so the three qualitative invariants emerge
+at realistic dial settings, then frozen.
 
 ### Outputs
 Headline **Goodput %** (delivered tokens ÷ tokens GPUs actually spent), big and
