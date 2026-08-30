@@ -28,8 +28,12 @@ describe('compute and delivery', () => {
     expect(s.delivered).toBeGreaterThan(0);
     expect(s.ghost).toBe(0);
     expect(s.ttft.length).toBeGreaterThan(0);
-    // every delivered token was computed for a live client
-    expect(Math.abs(s.delivered - s.live)).toBeLessThan(s.delivered * 0.01);
+    // A lone user has at most ONE in-flight request when the window closes, so
+    // computed-live may exceed delivered by at most one request's tokens
+    // (max prompt 1M + max output 2k). Never the other way around.
+    const inFlight = s.live - s.delivered;
+    expect(inFlight).toBeGreaterThanOrEqual(0);
+    expect(inFlight).toBeLessThanOrEqual(1_002_000);
   });
 
   it('shared throughput: 8 concurrent users deliver less per-user than 1', () => {
