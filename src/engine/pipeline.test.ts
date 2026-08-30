@@ -32,7 +32,8 @@ describe('pipeline promotion and timeouts', () => {
     let dead = 0;
     for (let i = 0; i < 4 * 35; i++) dead += sim.tick(0.25).deadDecodeQueue; // 35 sim-sec
     expect(dead).toBe(3);
-    expect(sim.decodeQueue.length).toBe(0);
+    // the 3 deaths were 529s to live clients -> their retries re-entered the queue (decode slots still full)
+    expect(sim.decodeQueue.length).toBe(3);
   });
 
   it('kills prefill-queue waiters after 30s, freeing their decode slots', () => {

@@ -141,12 +141,12 @@ export class Simulation {
   // --- pipeline promotion & timeouts -------------------------------------
 
   private expireQueues(m: TickMetrics): void {
-    this.expireQueue(this.decodeQueue, 'deadDecodeQueue', m, false);
-    this.expireQueue(this.prefillQueue, 'deadPrefillQueue', m, true);
+    this.expireQueue(this.decodeQueue, 'deadDecodeQueue', m);
+    this.expireQueue(this.prefillQueue, 'deadPrefillQueue', m);
   }
 
   private expireQueue(
-    queue: SimRequest[], deadPhase: 'deadDecodeQueue' | 'deadPrefillQueue', m: TickMetrics, shouldRetry: boolean,
+    queue: SimRequest[], deadPhase: 'deadDecodeQueue' | 'deadPrefillQueue', m: TickMetrics,
   ): void {
     const timeout = this.constants.queueTimeoutSec;
     for (let i = queue.length - 1; i >= 0; i--) {
@@ -157,7 +157,7 @@ export class Simulation {
       if (deadPhase === 'deadDecodeQueue') m.deadDecodeQueue += 1;
       else m.deadPrefillQueue += 1;
       // 529 reaches a still-live client -> it retries. Abandoned clients already did.
-      if (shouldRetry && r.clientAbandonedAt === null) this.scheduleRetry(this.users[r.userId], r, m);
+      if (r.clientAbandonedAt === null) this.scheduleRetry(this.users[r.userId], r, m);
     }
   }
 
