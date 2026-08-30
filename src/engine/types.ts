@@ -32,7 +32,7 @@ export const DEFAULT_CONSTANTS: Constants = {
   slotsPerDecodeServer: 8,
   queueTimeoutSec: 30,
   clientMaxRetries: 10,
-  prefillTokPerSecPerServer: 25_000,
+  prefillTokPerSecPerServer: 75_000,
   decodeTokPerSecPerServer: 1_500,
 };
 
