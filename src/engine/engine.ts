@@ -63,6 +63,8 @@ export class Simulation {
     this.simTime += dt;
     const m = newTickMetrics(this.simTime, this);
     this.emitRequests(m);
+    this.expireQueues(m);
+    this.promote();
     this.finalizeMetrics(m, dt);
     this.history.push(m);
     if (this.history.length > HISTORY_LIMIT) this.history.splice(0, 50_000);
@@ -134,6 +136,46 @@ export class Simulation {
     u.retryPromptTokens = null;
     u.retryOutputTokens = null;
     u.nextRequestAt = this.simTime + w.thinkTimeSec(this.rng);
+  }
+
+  // --- pipeline promotion & timeouts -------------------------------------
+
+  private expireQueues(m: TickMetrics): void {
+    this.expireQueue(this.decodeQueue, 'deadDecodeQueue', m, false);
+    this.expireQueue(this.prefillQueue, 'deadPrefillQueue', m, true);
+  }
+
+  private expireQueue(
+    queue: SimRequest[], deadPhase: 'deadDecodeQueue' | 'deadPrefillQueue', m: TickMetrics, shouldRetry: boolean,
+  ): void {
+    const timeout = this.constants.queueTimeoutSec;
+    for (let i = queue.length - 1; i >= 0; i--) {
+      const r = queue[i];
+      if (this.simTime - r.phaseEnteredAt <= timeout) continue;
+      queue.splice(i, 1);
+      r.phase = deadPhase;
+      if (deadPhase === 'deadDecodeQueue') m.deadDecodeQueue += 1;
+      else m.deadPrefillQueue += 1;
+      // 529 reaches a still-live client -> it retries. Abandoned clients already did.
+      if (shouldRetry && r.clientAbandonedAt === null) this.scheduleRetry(this.users[r.userId], r, m);
+    }
+  }
+
+  private promote(): void {
+    const heldCount = () =>
+      this.prefillQueue.length + this.prefilling.length + this.decoding.length;
+    while (this.decodeQueue.length > 0 && heldCount() < this.decodeSlotsTotal) {
+      const r = this.decodeQueue.shift()!;
+      r.phase = 'prefillQueue';
+      r.phaseEnteredAt = this.simTime;
+      this.prefillQueue.push(r);
+    }
+    while (this.prefillQueue.length > 0 && this.prefilling.length < this.prefillSlotsTotal) {
+      const r = this.prefillQueue.shift()!;
+      r.phase = 'prefilling';
+      r.phaseEnteredAt = this.simTime;
+      this.prefilling.push(r);
+    }
   }
 
   // --- metrics -----------------------------------------------------------
