@@ -10,13 +10,17 @@ interface Props { points: ChartPoint[]; ghost: GhostPoint[] | null; theoreticalT
 const fmtT = (t: number) => `${(t / 3600).toFixed(1)}h`;
 
 export function ChartsPanel({ points, ghost }: Props) {
-  const merged = points.map((p) => ({
-    ...p,
-    ghostGoodputPct: ghost
-      ? ghost.reduce<number | null>((best, g) =>
-          Math.abs(g.t - p.t) < 120 ? g.goodputPct : best, null)
-      : null,
-  }));
+  const merged = points.map((p) => {
+    let ghostGoodputPct: number | null = null;
+    if (ghost) {
+      let bestDist = 120;
+      for (const g of ghost) {
+        const d = Math.abs(g.t - p.t);
+        if (d < bestDist) { bestDist = d; ghostGoodputPct = g.goodputPct; }
+      }
+    }
+    return { ...p, ghostGoodputPct };
+  });
   return (
     <div className="charts">
       <div className="chart-box">
