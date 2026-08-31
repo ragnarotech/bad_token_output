@@ -11,7 +11,15 @@ export interface Dials {
   prefillServers: number;     // P:D split; decode servers derived from GPU budget
 }
 
-/** Frozen constants (spec §4). Values calibrated in Task 6, then frozen. */
+/**
+ * Frozen constants (spec §4). Values calibrated in Task 6, then frozen.
+ * decodeTokPerSecPerServer was re-calibrated (1,500 -> 6,000) when 32K-128K
+ * thinking budgets were added to the agentic-dev workload: at 1,500 the cluster
+ * is decode-bound for every configuration and the admission gate can no longer
+ * matter (goodput sits at ~100% while useful TPM collapses). At 6,000 the
+ * P6 default is balanced (prefill ~0.6 req/s, decode ~0.68 req/s) and all five
+ * collapse invariants hold — see collapse.test.ts.
+ */
 export interface Constants {
   gpuBudget: number;
   gpusPerPrefillServer: number;
@@ -33,7 +41,7 @@ export const DEFAULT_CONSTANTS: Constants = {
   queueTimeoutSec: 30,
   clientMaxRetries: 10,
   prefillTokPerSecPerServer: 75_000,
-  decodeTokPerSecPerServer: 1_500,
+  decodeTokPerSecPerServer: 6_000,
 };
 
 export type RequestPhase =

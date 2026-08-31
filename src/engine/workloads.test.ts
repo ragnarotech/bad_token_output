@@ -10,9 +10,18 @@ describe('workloads', () => {
       const o = w.sampleOutputTokens(rng);
       expect(p).toBeGreaterThanOrEqual(50_000);
       expect(p).toBeLessThanOrEqual(1_000_000);
-      expect(o).toBeGreaterThanOrEqual(200);
-      expect(o).toBeLessThanOrEqual(2_000);
+      // visible answer 200-2K plus a 32K-128K thinking budget: every request
+      // decodes at least 32K tokens before the user sees a word
+      expect(o).toBeGreaterThanOrEqual(32_200);
+      expect(o).toBeLessThanOrEqual(130_000);
     }
+  });
+  it('agentic-dev thinking dominates output (mean far above the visible answer)', () => {
+    const rng = mulberry32(7);
+    const w = WORKLOADS['agentic-dev'];
+    let sum = 0;
+    for (let i = 0; i < 2000; i++) sum += w.sampleOutputTokens(rng);
+    expect(sum / 2000).toBeGreaterThan(60_000);
   });
   it('agentic-dev prompts skew large (mean above midpoint)', () => {
     const rng = mulberry32(7);

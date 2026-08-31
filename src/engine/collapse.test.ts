@@ -1,6 +1,8 @@
 import { Simulation } from './engine';
 import { goodputPctWindow } from './stats';
 import { rushHourUsers, spikeUsers } from '../scenarios/loadCurves';
+import { evaluateWin } from '../scenarios/win';
+import { rushHour } from '../scenarios/rushHour';
 import type { Dials } from './types';
 
 const H = 3600;
@@ -60,8 +62,25 @@ describe('collapse invariants (spec §7) — the gate before any UI', () => {
       workload: 'agentic-dev', clientTimeoutSec: 60, retryStrategy: 'aggressive',
       numUsers: 0, admissionLimit: 100_000, prefillServers: 6,
     };
-    const sim = runDay(SPIKE_DIALS, 900 / H, spikeUsers, 1337);
+    const sim = runDay(SPIKE_DIALS, 1320 / H, spikeUsers, 1337);
     expect(goodputPctWindow(sim.history, 60, 170)).toBeGreaterThan(80);   // healthy before the spike
-    expect(goodputPctWindow(sim.history, 840, 900)).toBeLessThan(30);    // still down long after
+    expect(goodputPctWindow(sim.history, 1260, 1320)).toBeLessThan(30);  // still down 9 min after
+    // ...and the gate turns the same spike into cheap 529s (The Spike's closing claim)
+    const gated = runDay({ ...SPIKE_DIALS, admissionLimit: 60 }, 1320 / H, spikeUsers, 1337);
+    expect(goodputPctWindow(gated.history, 1260, 1320)).toBeGreaterThan(60);
   }, 60_000);
+
+  it('inv6: the Rush Hour win cannot be gamed by starving or by a ticket storm', () => {
+    // Rush Hour's own frame: t=0 is 6 AM, win window 9 AM-3 PM.
+    const day = (d: Partial<Dials>) =>
+      runDay({ ...rushHour.initialDials, ...d }, 14, (t) => rushHourUsers(t + 6 * H), rushHour.seed);
+    const win = rushHour.win!;
+    expect(evaluateWin(day({ admissionLimit: 60 }).history, win).won).toBe(true);
+    // P9:D1: 8 decode slots act as a free gate -> 100% goodput, ~9% of theoretical delivered
+    expect(evaluateWin(day({ prefillServers: 9 }).history, win)).toEqual({ won: false, text: win.starvedText });
+    // gate slammed to 20: goodput and TPM fine, thousands of dead sessions
+    expect(evaluateWin(day({ admissionLimit: 20 }).history, win)).toEqual({ won: false, text: win.ticketsText });
+    // no gate at all: the true story
+    expect(evaluateWin(day({}).history, win)).toEqual({ won: false, text: win.loseText });
+  }, 240_000);
 });

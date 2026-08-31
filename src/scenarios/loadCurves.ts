@@ -11,13 +11,17 @@ export function rushHourUsers(tSec: number): number {
 }
 
 /**
- * Steady healthy load (base alone gives near-full goodput) with a 3-minute
- * demand spike. Calibrated (Task 6 follow-up) so the spike, not the base
- * load, causes collapse — and the collapse outlasts the spike: retries plus
- * zombie work for abandoned clients keep the system pinned down long after
- * demand has returned to baseline (metastable failure, spec §7 inv5).
+ * Steady healthy load (base alone gives near-full goodput) with a 10-minute
+ * demand spike. Re-calibrated when thinking budgets landed: long decodes make
+ * the decode slots a natural throttle, so it takes a bigger, longer spike to
+ * tip the system — but once tipped, retries plus zombie work for abandoned
+ * clients keep it pinned long after demand is back at baseline (metastable
+ * failure, spec §7 inv5), and an admission gate turns the same spike into ten
+ * minutes of cheap 529s.
  */
+export const SPIKE_START_SEC = 180;
+export const SPIKE_END_SEC = 780;
 export function spikeUsers(tSec: number): number {
-  if (tSec >= 180 && tSec < 360) return 100;
-  return 33;
+  if (tSec >= SPIKE_START_SEC && tSec < SPIKE_END_SEC) return 200;
+  return 35;
 }
