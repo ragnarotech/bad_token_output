@@ -4,7 +4,7 @@ body { margin: 0; background: #0d1117; color: #e6edf3; font-family: system-ui, s
 .console {
   display: grid;
   grid-template-columns: 1fr;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto 1fr auto;
   height: 100vh;
 }
 
@@ -12,7 +12,7 @@ body { margin: 0; background: #0d1117; color: #e6edf3; font-family: system-ui, s
   grid-column: 1 / -1;
 }
 
-.main-container {
+.body-row {
   display: grid;
   grid-template-columns: 280px 1fr;
   overflow: hidden;
@@ -168,4 +168,69 @@ main {
 
 .goodput-headline.bad {
   color: #f85149;
+}
+
+.narrator {
+  grid-column: 1 / -1;
+  border-top: 1px solid #30363d;
+  padding: 1rem;
+  background: #0d1117;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.narrator.won {
+  background: #0d2818;
+  border-top-color: #3fb950;
+}
+
+.narrator.lost {
+  background: #3d1f1a;
+  border-top-color: #f85149;
+}
+
+.narrator .msg {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #c9d1d9;
+}
+
+.narrator .msg.dim {
+  color: #8b949e;
+  font-style: italic;
+}
+
+.narrator.won .msg {
+  color: #3fb950;
+}
+
+.narrator.lost .msg {
+  color: #f85149;
+}
+
+.narrator .log {
+  list-style: none;
+  margin: 0.5rem 0 0 0;
+  padding-left: 1rem;
+  max-height: 200px;
+  overflow-y: auto;
+  border-left: 1px solid #30363d;
+}
+
+.narrator .log li {
+  font-size: 0.8rem;
+  color: #8b949e;
+  margin: 0.25rem 0;
+}
+
+.narrator button.tiny {
+  align-self: flex-start;
+  font-size: 0.7rem;
+  padding: 0.3rem 0.6rem;
+  background: #238636;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
 }

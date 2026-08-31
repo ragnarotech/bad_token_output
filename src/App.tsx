@@ -3,6 +3,7 @@ import { GoodputHeadline } from './ui/components/GoodputHeadline';
 import { HeaderBar } from './ui/components/HeaderBar';
 import { PipelineStrip } from './ui/components/PipelineStrip';
 import { ChartsPanel } from './ui/components/ChartsPanel';
+import { NarratorBar } from './ui/components/NarratorBar';
 import { rollingGoodputPct, useSimulation } from './ui/useSimulation';
 import { bucketize } from './ui/chartData';
 
@@ -52,7 +53,7 @@ export default function App() {
         onSpeed={api.setSpeed}
         onScenario={api.loadScenario}
       />
-      <div className="main-container">
+      <div className="body-row">
         <DialsRail
           dials={api.sim.dials}
           decodeServers={api.sim.decodeServers}
@@ -71,6 +72,7 @@ export default function App() {
           <ChartsPanel points={points} ghost={api.ghost} theoreticalTokPerSec={theoreticalTokPerSec} />
         </main>
       </div>
+      <NarratorBar log={api.narratorLog} finished={api.finished} won={api.won} win={api.scenario.win} />
     </div>
   );
 }
