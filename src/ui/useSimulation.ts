@@ -39,7 +39,8 @@ function newSim(scn: Scenario): Simulation {
 export function useSimulation(): SimApi {
   const [scenarioId, setScenarioId] = useState<Scenario['id']>('rush-hour');
   const scenario = SCENARIOS[scenarioId];
-  const simRef = useRef<Simulation>(newSim(scenario));
+  const simRef = useRef<Simulation | null>(null);
+  if (simRef.current === null) simRef.current = newSim(scenario);
   const firedRef = useRef<Set<string>>(new Set());
   const surgeUntilRef = useRef(0);
   const ghostsRef = useRef<Partial<Record<Scenario['id'], GhostPoint[]>>>({});
@@ -52,7 +53,7 @@ export function useSimulation(): SimApi {
   const [won, setWon] = useState<boolean | null>(null);
 
   const captureGhost = useCallback(() => {
-    const sim = simRef.current;
+    const sim = simRef.current!;
     if (sim.simTime < 60) return; // nothing worth ghosting
     const pts: GhostPoint[] = [];
     const step = Math.max(1, Math.ceil(sim.history.length / 500));
@@ -88,8 +89,9 @@ export function useSimulation(): SimApi {
     let lastChartRender = 0;
     const loop = (now: number) => {
       acc += ((now - prev) / 1000) * speed;
+      if (acc > DT * MAX_TICKS_PER_FRAME) acc = DT * MAX_TICKS_PER_FRAME;
       prev = now;
-      const sim = simRef.current;
+      const sim = simRef.current!;
       const scn = SCENARIOS[scenarioId];
       let ticks = 0;
       const newMsgs: NarratorMsg[] = [];
@@ -134,7 +136,7 @@ export function useSimulation(): SimApi {
   }, [running, speed, scenarioId]);
 
   return {
-    sim: simRef.current,
+    sim: simRef.current!,
     scenario,
     running, speed, renderSeq, chartSeq, narratorLog,
     ghost: ghostsRef.current[scenarioId] ?? null,
@@ -150,12 +152,12 @@ export function useSimulation(): SimApi {
         && Object.keys(patch).some((k) => clientKeys.includes(k as keyof Dials))) {
         firedRef.current.add('client-note');
         const line = SCENARIOS['free-play'].narrator.find((l) => l.id === 'client-note');
-        if (line) setNarratorLog((log) => [...log, { id: line.id, t: simRef.current.simTime, text: line.text }]);
+        if (line) setNarratorLog((log) => [...log, { id: line.id, t: simRef.current!.simTime, text: line.text }]);
       }
-      simRef.current.setDials(patch);
+      simRef.current!.setDials(patch);
       setRenderSeq((s) => s + 1);
     },
-    surge: () => { surgeUntilRef.current = simRef.current.simTime + 60; },
+    surge: () => { surgeUntilRef.current = simRef.current!.simTime + 60; },
   };
 }
 

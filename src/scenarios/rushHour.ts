@@ -11,7 +11,7 @@ export const rushHour: Scenario = {
   seed: 42,
   durationSec: 14 * H,
   clockStartHour: 6,
-  defaultSpeed: 480, // 24h in 3 wall-minutes
+  defaultSpeed: 480, // 14h day in ~1.75 wall-minutes
   initialDials: {
     workload: 'agentic-dev', clientTimeoutSec: 120, retryStrategy: 'aggressive',
     numUsers: 0, admissionLimit: 100_000, prefillServers: 6,

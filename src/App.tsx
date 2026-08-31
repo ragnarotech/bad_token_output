@@ -42,11 +42,6 @@ export default function App() {
     [api.chartSeq, api.scenario.id],
   );
 
-  // Compute theoreticalTokPerSec: last theoreticalMaxTok × 4, or 0 on empty history
-  const theoreticalTokPerSec = api.sim.history.length > 0
-    ? api.sim.history[api.sim.history.length - 1].theoreticalMaxTok * 4
-    : 0;
-
   return (
     <div className="console">
       <HeaderBar
@@ -75,7 +70,7 @@ export default function App() {
             helpTickets={api.sim.totalGiveUps}
           />
           <PipelineStrip snap={api.sim.snapshot()} queueTimeoutSec={api.sim.constants.queueTimeoutSec} />
-          <ChartsPanel points={points} ghost={api.ghost} theoreticalTokPerSec={theoreticalTokPerSec} />
+          <ChartsPanel points={points} ghost={api.ghost} />
         </main>
       </div>
       <NarratorBar log={api.narratorLog} finished={api.finished} won={api.won} win={api.scenario.win} />

@@ -7,7 +7,7 @@ import type { GhostPoint } from '../useSimulation';
 import type { ChartPoint } from '../chartData';
 import { fmtTok2 } from '../format';
 
-interface Props { points: ChartPoint[]; ghost: GhostPoint[] | null; theoreticalTokPerSec: number }
+interface Props { points: ChartPoint[]; ghost: GhostPoint[] | null }
 
 const fmtT = (t: number) => `${(t / 3600).toFixed(1)}h`;
 const fmtPct2 = (v: number) => `${Number(v).toFixed(2)}%`;
