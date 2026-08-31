@@ -1,7 +1,10 @@
 import { DialsRail } from './ui/components/DialsRail';
 import { GoodputHeadline } from './ui/components/GoodputHeadline';
 import { HeaderBar } from './ui/components/HeaderBar';
+import { PipelineStrip } from './ui/components/PipelineStrip';
+import { ChartsPanel } from './ui/components/ChartsPanel';
 import { rollingGoodputPct, useSimulation } from './ui/useSimulation';
+import { bucketize } from './ui/chartData';
 
 export default function App() {
   const api = useSimulation();
@@ -28,6 +31,14 @@ export default function App() {
     const lastMetric = api.sim.history[api.sim.history.length - 1];
     theoreticalTpm = lastMetric.theoreticalMaxTok * 240;
   }
+
+  // Compute chart data points
+  const points = bucketize(api.sim.history, api.scenario.id === 'rush-hour' ? 120 : 5, 400);
+
+  // Compute theoreticalTokPerSec: last theoreticalMaxTok × 4, or 0 on empty history
+  const theoreticalTokPerSec = api.sim.history.length > 0
+    ? api.sim.history[api.sim.history.length - 1].theoreticalMaxTok * 4
+    : 0;
 
   return (
     <div className="console">
@@ -56,6 +67,8 @@ export default function App() {
             theoreticalTpm={theoreticalTpm}
             helpTickets={api.sim.totalGiveUps}
           />
+          <PipelineStrip snap={api.sim.snapshot()} queueTimeoutSec={api.sim.constants.queueTimeoutSec} />
+          <ChartsPanel points={points} ghost={api.ghost} theoreticalTokPerSec={theoreticalTokPerSec} />
         </main>
       </div>
     </div>
