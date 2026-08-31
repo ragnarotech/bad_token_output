@@ -18,6 +18,7 @@ export interface SimApi {
   running: boolean;
   speed: number;
   renderSeq: number;
+  chartSeq: number;
   narratorLog: NarratorMsg[];
   ghost: GhostPoint[] | null;
   finished: boolean;
@@ -46,6 +47,7 @@ export function useSimulation(): SimApi {
   const [running, setRunning] = useState(false);
   const [speed, setSpeed] = useState(scenario.defaultSpeed);
   const [renderSeq, setRenderSeq] = useState(0);
+  const [chartSeq, setChartSeq] = useState(0);
   const [finished, setFinished] = useState(false);
   const [won, setWon] = useState<boolean | null>(null);
 
@@ -74,6 +76,7 @@ export function useSimulation(): SimApi {
     setFinished(false);
     setWon(null);
     setRenderSeq((s) => s + 1);
+    setChartSeq((s) => s + 1);
   }, [captureGhost]);
 
   useEffect(() => {
@@ -82,6 +85,7 @@ export function useSimulation(): SimApi {
     let prev = performance.now();
     let acc = 0;
     let lastRender = 0;
+    let lastChartRender = 0;
     const loop = (now: number) => {
       acc += ((now - prev) / 1000) * speed;
       prev = now;
@@ -112,11 +116,16 @@ export function useSimulation(): SimApi {
           ) >= scn.win.minGoodputPct);
         }
         setRenderSeq((s) => s + 1);
+        setChartSeq((s) => s + 1);
         return;
       }
       if (now - lastRender > RENDER_INTERVAL_MS) {
         lastRender = now;
         setRenderSeq((s) => s + 1);
+      }
+      if (now - lastChartRender > 1000) {
+        lastChartRender = now;
+        setChartSeq((s) => s + 1);
       }
       raf = requestAnimationFrame(loop);
     };
@@ -127,7 +136,7 @@ export function useSimulation(): SimApi {
   return {
     sim: simRef.current,
     scenario,
-    running, speed, renderSeq, narratorLog,
+    running, speed, renderSeq, chartSeq, narratorLog,
     ghost: ghostsRef.current[scenarioId] ?? null,
     finished, won,
     play: () => setRunning(true),

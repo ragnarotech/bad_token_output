@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { DialsRail } from './ui/components/DialsRail';
 import { GoodputHeadline } from './ui/components/GoodputHeadline';
 import { HeaderBar } from './ui/components/HeaderBar';
@@ -33,8 +34,13 @@ export default function App() {
     theoreticalTpm = lastMetric.theoreticalMaxTok * 240;
   }
 
-  // Compute chart data points
-  const points = bucketize(api.sim.history, api.scenario.id === 'rush-hour' ? 120 : 5, 400);
+  // Compute chart data points — re-bucketize only when chartSeq advances (throttled
+  // to ~1/sec in useSimulation), not on every ~10fps render.
+  const points = useMemo(
+    () => bucketize(api.sim.history, api.scenario.id === 'rush-hour' ? 120 : 5, 400),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [api.chartSeq, api.scenario.id],
+  );
 
   // Compute theoreticalTokPerSec: last theoreticalMaxTok × 4, or 0 on empty history
   const theoreticalTokPerSec = api.sim.history.length > 0
