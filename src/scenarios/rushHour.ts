@@ -19,7 +19,7 @@ export const rushHour: Scenario = {
   loadCurve: (t) => rushHourUsers(t + 6 * H),
   narrator: [
     { id: 'welcome', text: '6 AM. Cron jobs hum along. Watch the pipeline: requests take a decode slot FIRST, then wait for prefill. Remember that.', when: ({ t }) => t > 60 },
-    { id: 'ramp', text: '9 AM. The org logs on. Every request is an agentic-dev monster: prompts up to 1M tokens, outputs tiny.', when: ({ t }) => t > 3 * H },
+    { id: 'ramp', text: '9 AM. The org logs on. Every request is an agentic-dev monster: prompts up to 1M tokens, and 32K-128K of thinking before anyone sees a word.', when: ({ t }) => t > 3 * H },
     { id: 'oversub', text: '10 AM. Demand now exceeds supply — but goodput is still decent. Are we fine? We are not fine.', when: ({ t }) => t > 4 * H },
     { id: 'tpm', text: 'The TPM counter is enormous and the officials are delighted. Look closer: only tokens that REACH a user count. The rest is very expensive heat.', when: ({ t, sim }) => t > 4.75 * H && rollingGoodputPct(sim.history, 600) < 60 },
     { id: 'collapse', text: 'Nothing is broken. Everything is busy. Goodput is cratering while every GPU reads 100%. Welcome to the worst kind of outage.', when: ({ t, sim }) => t > 4.5 * H && rollingGoodputPct(sim.history, 600) < 25 },
@@ -32,8 +32,16 @@ export const rushHour: Scenario = {
     { id: 'close', text: 'Day over. Run it again — this time the dials are yours. Hint: the hero dial is the one that says no.', when: ({ t }) => t > 13.5 * H },
   ],
   win: {
-    windowStartSec: 3 * H, windowEndSec: 9 * H, minGoodputPct: 60,
+    windowStartSec: 3 * H, windowEndSec: 9 * H,
+    // All three headline numbers must be green 9 AM-3 PM. Calibrated against
+    // the P:D x gate table (win.test.ts / collapse.test.ts): P6 + gate 60 lands
+    // at ~95% goodput, ~93% of theoretical, ~500 tickets. P9:D1 keeps 100%
+    // goodput but delivers ~9% of theoretical; a gate of 20-40 keeps goodput
+    // but buries devops in 3-7K tickets. Neither is a win.
+    minGoodputPct: 60, minUsefulPctOfTheoretical: 60, maxHelpTickets: 1_000,
     winText: 'You kept goodput above 60% through the crush — by admitting less. The org got more work done and nobody paged you.',
     loseText: 'Goodput fell below 60% across the working day. Try lowering the admission limit before the 11 AM wall.',
+    starvedText: 'Goodput held — because almost nothing got in. Useful TPM ran under 60% of theoretical: every token was delivered, and the org still went home with nothing done. Starving the cluster is not a fix.',
+    ticketsText: 'Goodput held and the tokens flowed — into a wall of help tickets. Over 1,000 sessions died after 10 retries. Gate a little wider: the door should say no, not never.',
   },
 };

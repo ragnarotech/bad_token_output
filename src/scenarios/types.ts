@@ -5,8 +5,11 @@ export interface NarratorCtx { t: number; sim: Simulation; last: TickMetrics | u
 export interface NarratorLine { id: string; text: string; when: (ctx: NarratorCtx) => boolean }
 export interface NarratorMsg { id: string; t: number; text: string }
 export interface WinCondition {
-  windowStartSec: number; windowEndSec: number; minGoodputPct: number;
-  winText: string; loseText: string;
+  windowStartSec: number; windowEndSec: number;
+  minGoodputPct: number;              // headline GOODPUT %
+  minUsefulPctOfTheoretical: number;  // useful TPM as % of theoretical — a starved cluster is no win
+  maxHelpTickets: number;             // give-ups inside the window — a ticket storm is no win
+  winText: string; loseText: string; starvedText: string; ticketsText: string;
 }
 export interface Scenario {
   id: 'rush-hour' | 'spike' | 'free-play';

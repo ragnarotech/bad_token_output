@@ -1,15 +1,16 @@
 import { useState } from 'react';
-import type { NarratorMsg, WinCondition } from '../../scenarios/types';
+import type { NarratorMsg } from '../../scenarios/types';
+import type { Verdict } from '../../scenarios/win';
 
-interface Props { log: NarratorMsg[]; finished: boolean; won: boolean | null; win?: WinCondition }
+interface Props { log: NarratorMsg[]; finished: boolean; verdict: Verdict | null }
 
-export function NarratorBar({ log, finished, won, win }: Props) {
+export function NarratorBar({ log, finished, verdict }: Props) {
   const [expanded, setExpanded] = useState(false);
   const latest = log[log.length - 1];
   return (
-    <footer className={`narrator ${finished ? (won ? 'won' : won === false ? 'lost' : '') : ''}`}>
-      {finished && win && won !== null ? (
-        <p className="msg">{won ? `🏆 ${win.winText}` : `💀 ${win.loseText}`}</p>
+    <footer className={`narrator ${finished && verdict ? (verdict.won ? 'won' : 'lost') : ''}`}>
+      {finished && verdict ? (
+        <p className="msg">{verdict.won ? `🏆 ${verdict.text}` : `💀 ${verdict.text}`}</p>
       ) : latest ? (
         <p className="msg">{latest.text}</p>
       ) : (

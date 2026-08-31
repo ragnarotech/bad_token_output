@@ -1,4 +1,4 @@
-import { goodputPctWindow, percentile, rollingGoodputPct } from './stats';
+import { goodputPctWindow, percentile, rollingGoodputPct, windowTotals } from './stats';
 import type { TickMetrics } from './types';
 
 function mk(t: number, delivered: number, live: number, ghost: number): TickMetrics {
@@ -22,6 +22,10 @@ describe('stats', () => {
   it('rollingGoodputPct uses the tail window', () => {
     const h = [mk(1, 0, 0, 100), mk(100, 100, 100, 0)];
     expect(rollingGoodputPct(h, 10)).toBe(100);
+  });
+  it('windowTotals sums delivered, theoretical and give-ups inside the window only', () => {
+    const h = [mk(1, 100, 0, 0), { ...mk(2, 10, 0, 0), theoreticalMaxTok: 50, giveUps: 2 }, mk(3, 1, 0, 0)];
+    expect(windowTotals(h, 1.5, 2.5)).toEqual({ deliveredTok: 10, theoreticalTok: 50, giveUps: 2 });
   });
   it('percentile', () => {
     expect(percentile([1, 2, 3, 4, 5], 50)).toBe(3);

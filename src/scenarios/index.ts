@@ -10,3 +10,5 @@ export const SCENARIOS: Record<Scenario['id'], Scenario> = {
 };
 export type { Scenario, NarratorMsg, NarratorLine, NarratorCtx, WinCondition } from './types';
 export { evalNarrator } from './narrator';
+export { evaluateWin } from './win';
+export type { Verdict } from './win';

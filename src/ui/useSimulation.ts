@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Simulation } from '../engine/engine';
 import { rollingGoodputPct } from '../engine/stats';
 import type { Dials } from '../engine/types';
-import { SCENARIOS, evalNarrator } from '../scenarios/index';
+import { SCENARIOS, evalNarrator, evaluateWin } from '../scenarios/index';
+import type { Verdict } from '../scenarios/index';
 import type { NarratorMsg, Scenario } from '../scenarios/types';
 import { goodputPctWindow } from '../engine/stats';
 
@@ -22,7 +23,7 @@ export interface SimApi {
   narratorLog: NarratorMsg[];
   ghost: GhostPoint[] | null;
   finished: boolean;
-  won: boolean | null;
+  verdict: Verdict | null;
   play(): void;
   pause(): void;
   reset(): void;
@@ -50,7 +51,7 @@ export function useSimulation(): SimApi {
   const [renderSeq, setRenderSeq] = useState(0);
   const [chartSeq, setChartSeq] = useState(0);
   const [finished, setFinished] = useState(false);
-  const [won, setWon] = useState<boolean | null>(null);
+  const [verdict, setVerdict] = useState<Verdict | null>(null);
 
   const captureGhost = useCallback(() => {
     const sim = simRef.current!;
@@ -75,7 +76,7 @@ export function useSimulation(): SimApi {
     setSpeed(scn.defaultSpeed);
     setRunning(false);
     setFinished(false);
-    setWon(null);
+    setVerdict(null);
     setRenderSeq((s) => s + 1);
     setChartSeq((s) => s + 1);
   }, [captureGhost]);
@@ -112,11 +113,7 @@ export function useSimulation(): SimApi {
       if (sim.simTime >= scn.durationSec) {
         setRunning(false);
         setFinished(true);
-        if (scn.win) {
-          setWon(goodputPctWindow(
-            sim.history, scn.win.windowStartSec, scn.win.windowEndSec,
-          ) >= scn.win.minGoodputPct);
-        }
+        if (scn.win) setVerdict(evaluateWin(sim.history, scn.win));
         setRenderSeq((s) => s + 1);
         setChartSeq((s) => s + 1);
         return;
@@ -140,7 +137,7 @@ export function useSimulation(): SimApi {
     scenario,
     running, speed, renderSeq, chartSeq, narratorLog,
     ghost: ghostsRef.current[scenarioId] ?? null,
-    finished, won,
+    finished, verdict,
     play: () => setRunning(true),
     pause: () => setRunning(false),
     reset: () => resetTo(scenarioId),
