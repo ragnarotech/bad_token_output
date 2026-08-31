@@ -6,3 +6,4 @@ SWE_take-home-assignment.md
 node_modules/
 dist/
 *.tsbuildinfo
+.playwright-mcp/
