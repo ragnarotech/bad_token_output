@@ -1,6 +1,6 @@
 import { Simulation } from './engine';
 import { goodputPctWindow } from './stats';
-import { rushHourUsers } from '../scenarios/loadCurves';
+import { rushHourUsers, spikeUsers } from '../scenarios/loadCurves';
 import type { Dials } from './types';
 
 const H = 3600;
@@ -9,8 +9,10 @@ const RUSH_DIALS: Dials = {
   numUsers: 0, admissionLimit: 100_000, prefillServers: 6,
 };
 
-function runDay(dials: Dials, hours: number, curve: (t: number) => number): Simulation {
-  const sim = new Simulation(dials, 42);
+function runDay(
+  dials: Dials, hours: number, curve: (t: number) => number, seed = 42,
+): Simulation {
+  const sim = new Simulation(dials, seed);
   const steps = Math.round((hours * H) / 0.25);
   for (let i = 0; i < steps; i++) {
     sim.setTargetActiveUsers(curve(sim.simTime));
@@ -48,4 +50,18 @@ describe('collapse invariants (spec §7) — the gate before any UI', () => {
     const hi = runDay({ ...RUSH_DIALS, admissionLimit: 60, prefillServers: 7 }, 15, rushHourUsers);
     expect(sum(hi)).toBeGreaterThan(sum(lo));
   }, 240_000);
+
+  it('inv5: a spike outlasts itself — metastable failure that does not self-heal', () => {
+    // The Spike scenario's teaching claim: retries + zombie work for abandoned
+    // clients become the load. Steady base is healthy on its own; the spike
+    // (not mere overload) is what tips the system into a collapse that
+    // persists long after demand is back at baseline, with no admission gate.
+    const SPIKE_DIALS: Dials = {
+      workload: 'agentic-dev', clientTimeoutSec: 60, retryStrategy: 'aggressive',
+      numUsers: 0, admissionLimit: 100_000, prefillServers: 6,
+    };
+    const sim = runDay(SPIKE_DIALS, 900 / H, spikeUsers, 1337);
+    expect(goodputPctWindow(sim.history, 60, 170)).toBeGreaterThan(80);   // healthy before the spike
+    expect(goodputPctWindow(sim.history, 840, 900)).toBeLessThan(30);    // still down long after
+  }, 60_000);
 });

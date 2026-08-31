@@ -17,9 +17,9 @@ export const spike: Scenario = {
   loadCurve: spikeUsers,
   narrator: [
     { id: 'steady', text: 'Steady state, ~90% of capacity. Comfortable. A little too comfortable.', when: ({ t }) => t > 30 },
-    { id: 'hit', text: 'Spike. Triple the users for two minutes. Watch the queues.', when: ({ t }) => t > 185 },
-    { id: 'over', text: 'The spike is OVER. Demand is back to normal. So why are the queues still growing?', when: ({ t }) => t > 330 },
+    { id: 'hit', text: 'Spike. Triple the users for three minutes. Watch the queues.', when: ({ t }) => t > 185 },
+    { id: 'over', text: 'The spike is OVER. Demand is back to normal. So why are the queues still growing?', when: ({ t }) => t > 375 },
     { id: 'why', text: 'Because the load is no longer your users — it is their retries, plus zombie work for clients that already gave up. The system is eating itself. This is metastable failure.', when: ({ t, sim }) => t > 420 && rollingGoodputPct(sim.history, 120) < 30 },
-    { id: 'end', text: 'A 2-minute spike bought a permanent outage. An admission gate turns the same spike into 2 minutes of cheap 529s. Try it in Free Play — there is a Surge button.', when: ({ t }) => t > 840 },
+    { id: 'end', text: 'A 3-minute spike bought a permanent outage. An admission gate turns the same spike into 3 minutes of cheap 529s. Try it in Free Play — there is a Surge button.', when: ({ t }) => t > 840 },
   ],
 };

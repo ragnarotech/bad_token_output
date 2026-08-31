@@ -10,8 +10,14 @@ export function rushHourUsers(tSec: number): number {
   return 6;
 }
 
-/** Steady ~90% load with a 2-minute demand spike. */
+/**
+ * Steady healthy load (base alone gives near-full goodput) with a 3-minute
+ * demand spike. Calibrated (Task 6 follow-up) so the spike, not the base
+ * load, causes collapse — and the collapse outlasts the spike: retries plus
+ * zombie work for abandoned clients keep the system pinned down long after
+ * demand has returned to baseline (metastable failure, spec §7 inv5).
+ */
 export function spikeUsers(tSec: number): number {
-  if (tSec >= 180 && tSec < 300) return 90;
-  return 30;
+  if (tSec >= 180 && tSec < 360) return 100;
+  return 33;
 }
