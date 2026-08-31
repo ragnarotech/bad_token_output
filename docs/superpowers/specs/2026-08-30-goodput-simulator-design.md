@@ -264,3 +264,31 @@ ops voice and is polishable late without code changes.
   shift user behavior slowly and partially.
 - Multi-tenant fairness / per-team rate limits (LiteLLM-gateway experience).
 - Per-user retry-cap overrides (the 1,000-retry power user vs the default-10 majority).
+
+## 12. Amendments (post-review, 2026-08-31)
+
+From interactive testing after the v1 merge; each amends the section named.
+
+- **§3.4 Workloads — thinking budgets.** The org ran every agentic-dev
+  request with a 32K-minimum / 128K-maximum thinking budget. Output tokens for
+  the agentic-dev preset are now the visible answer (200–2K) *plus* 32K–128K of
+  thinking, modeled as budget = spend (uniform). Thinking is decode work the
+  user never reads but the GPU must produce before the first visible token.
+- **§4 Frozen constants — decode tok/s.** Re-calibrated 1,500 → 6,000 per
+  decode server with thinking in the workload; at 1,500 the cluster is
+  decode-bound for every configuration and the admission gate can no longer
+  matter. All five §7 invariants hold at 6,000 (`collapse.test.ts`).
+- **§6 The Spike — recalibrated** to base 35 users, 200 at peak, a 10-minute
+  spike (as originally written here; the 3-minute trim no longer tips a
+  thinking-heavy cluster), 22 sim-minutes total. The gate claim in the closing
+  narrator line is now asserted by inv5.
+- **§6 Rush Hour win condition — three headline numbers, not one.** Goodput %
+  alone is gameable: P9:D1 leaves 8 decode slots that act as a free admission
+  gate (100% goodput, ~9% of theoretical delivered), and a gate of 20–40 keeps
+  goodput while burying devops in 3–7K help tickets. A win now requires, over
+  9 AM–3 PM: goodput ≥ 60%, useful TPM ≥ 60% of theoretical, and ≤ 1,000
+  help tickets — the three numbers the headline already shows (inv6).
+- **§5 Console.** Token-spend chart reports TPM (the headline's unit); queue
+  bars scale against the slot pool they feed; time axis is real time pinned to
+  the scenario's full duration (tooltip snaps to a bucket, not across the
+  chart, and the previous run's ghost line shows the whole day from t=0).

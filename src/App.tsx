@@ -70,10 +70,10 @@ export default function App() {
             helpTickets={api.sim.totalGiveUps}
           />
           <PipelineStrip snap={api.sim.snapshot()} queueTimeoutSec={api.sim.constants.queueTimeoutSec} />
-          <ChartsPanel points={points} ghost={api.ghost} />
+          <ChartsPanel points={points} ghost={api.ghost} durationSec={api.scenario.durationSec} />
         </main>
       </div>
-      <NarratorBar log={api.narratorLog} finished={api.finished} won={api.won} win={api.scenario.win} />
+      <NarratorBar log={api.narratorLog} finished={api.finished} verdict={api.verdict} />
     </div>
   );
 }

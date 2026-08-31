@@ -12,15 +12,16 @@ function mk(t: number): TickMetrics {
 }
 
 describe('bucketize', () => {
-  it('aggregates ticks into per-second rates', () => {
+  it('aggregates ticks into per-minute rates (TPM)', () => {
     const h: TickMetrics[] = [];
     for (let i = 1; i <= 40; i++) h.push(mk(i * 0.25)); // 10 sim-sec
     const pts = bucketize(h, 2, 100);
     expect(pts.length).toBe(5);
     const p = pts[0];
-    expect(p.liveTokPerSec).toBeCloseTo(100);   // 25 tok * 8 ticks / 2 sec
-    expect(p.ghostTokPerSec).toBeCloseTo(100);
-    expect(p.idleTokPerSec).toBeCloseTo(200);   // 100 max * 8 / 2 - live - ghost
+    expect(p.liveTpm).toBeCloseTo(6000);   // 25 tok * 8 ticks / 2 sec * 60
+    expect(p.ghostTpm).toBeCloseTo(6000);
+    expect(p.idleTpm).toBeCloseTo(12000);  // (100 max * 8 - live - ghost) / 2 sec * 60
+    expect(p.deliveredTpm).toBeCloseTo(2400);
     expect(p.goodputPct).toBeCloseTo(100 * 80 / 400);
     expect(p.deep529).toBe(8);
     expect(p.shallow529).toBe(8);

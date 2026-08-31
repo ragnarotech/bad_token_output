@@ -483,11 +483,16 @@ main {
   min-height: 140px;
 }
 
-/* let the fixed pixel heights set by ResponsiveContainer's props flex to fill
-   whatever room the CSS box above actually has — this is what removes the
-   dead zone under the charts on tall viewports */
+/* The chart box, not the chart, owns the height: ResponsiveContainer is given
+   height="100%" and this flex item hands it whatever room the column has
+   (basis 0 so its size never depends on its own content). The SVG is then
+   always drawn at the size it was measured at. The previous override kept
+   fixed pixel heights inside a shrinkable box, so on short viewports the SVG
+   was squeezed and uniformly scaled by its viewBox — drawn narrower and
+   centered while Recharts hit-tested the unscaled layout: the pointer and the
+   highlighted point disagreed. */
 .chart-box .recharts-responsive-container {
-  flex: 1 1 auto !important;
+  flex: 1 1 0 !important;
   width: 100% !important;
   height: auto !important;
   min-height: 0 !important;

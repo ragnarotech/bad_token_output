@@ -3,8 +3,9 @@ import type { TickMetrics } from '../engine/types';
 
 export interface ChartPoint {
   t: number;
-  liveTokPerSec: number; ghostTokPerSec: number; idleTokPerSec: number;
-  goodputPct: number; deliveredTokPerSec: number; activeUsers: number;
+  // token spend in TPM, the unit the headline reports (useful TPM of theoretical)
+  liveTpm: number; ghostTpm: number; idleTpm: number;
+  goodputPct: number; deliveredTpm: number; activeUsers: number;
   ttftP50: number; ttftP90: number;
   shallow529: number; deep529: number; abandons: number; retries: number; giveUps: number;
   decodeQueueDepth: number; prefillQueueDepth: number;
@@ -30,13 +31,14 @@ export function bucketize(
     }
     const last = history[i + perBucket - 1];
     const computed = live + ghost;
+    const perMin = 60 / bucketSec;
     out.push({
       t: last.t,
-      liveTokPerSec: live / bucketSec,
-      ghostTokPerSec: ghost / bucketSec,
-      idleTokPerSec: Math.max(0, (max - live - ghost) / bucketSec),
+      liveTpm: live * perMin,
+      ghostTpm: ghost * perMin,
+      idleTpm: Math.max(0, (max - live - ghost) * perMin),
       goodputPct: computed === 0 ? 100 : Math.min(100, (100 * delivered) / computed),
-      deliveredTokPerSec: delivered / bucketSec,
+      deliveredTpm: delivered * perMin,
       activeUsers: last.activeUsers,
       ttftP50: percentile(ttft, 50), ttftP90: percentile(ttft, 90),
       shallow529: shallow, deep529: deepDq + deepPq, abandons, retries, giveUps,
