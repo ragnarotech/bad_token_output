@@ -53,7 +53,7 @@ export function useSimulation(): SimApi {
     const sim = simRef.current;
     if (sim.simTime < 60) return; // nothing worth ghosting
     const pts: GhostPoint[] = [];
-    const step = Math.max(1, Math.floor(sim.history.length / 500));
+    const step = Math.max(1, Math.ceil(sim.history.length / 500));
     for (let i = 0; i < sim.history.length; i += step) {
       const t = sim.history[i].t;
       pts.push({ t, goodputPct: goodputPctWindow(sim.history, t - 60, t) });
@@ -111,6 +111,8 @@ export function useSimulation(): SimApi {
             sim.history, scn.win.windowStartSec, scn.win.windowEndSec,
           ) >= scn.win.minGoodputPct);
         }
+        setRenderSeq((s) => s + 1);
+        return;
       }
       if (now - lastRender > RENDER_INTERVAL_MS) {
         lastRender = now;

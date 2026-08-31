@@ -13,7 +13,7 @@ interface Props {
   onScenario(id: Scenario['id']): void;
 }
 
-const SPEEDS = [15, 60, 240, 480, 960];
+const SPEEDS = [15, 30, 60, 240, 480, 960];
 
 export function HeaderBar(p: Props) {
   return (
