@@ -22,8 +22,9 @@ jobs:
       - run: npm ci
       - run: npx vitest run
       - run: npm run build
+      # One-time manual step before the first deploy: Settings -> Pages -> Source: GitHub Actions.
+      # GITHUB_TOKEN cannot create the Pages site itself ("Resource not accessible by integration").
       - uses: actions/configure-pages@v5
-        with: { enablement: true } # first deploy: create the Pages site (source = GitHub Actions) if it does not exist
       - uses: actions/upload-pages-artifact@v3
         with: { path: dist }
       - id: deployment
