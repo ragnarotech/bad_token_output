@@ -354,6 +354,40 @@ main {
   color: var(--warn);
 }
 
+.goodput-headline .score {
+  display: flex;
+  gap: 2.5rem;
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.goodput-headline .score-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.goodput-headline .score-label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-faint);
+}
+
+.goodput-headline .score-num {
+  font-family: var(--mono);
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+.goodput-headline .score-item.delivered .score-num { color: var(--good); }
+.goodput-headline .score-item.wasted .score-num { color: var(--text-dim); }
+.goodput-headline .score-item.wasted.bad .score-num { color: var(--bad); text-shadow: 0 0 16px rgba(248, 81, 73, 0.35); }
+
 .goodput-headline .sub {
   font-family: var(--sans);
   font-size: 0.72rem;

@@ -25,6 +25,10 @@ export class Simulation {
   simTime = 0;
   /** Cumulative give-ups: each one is a help ticket in the devops queue. */
   totalGiveUps = 0;
+  /** Scenario score: tokens that reached a user, and tokens the GPUs spent that never did. */
+  totalDeliveredTok = 0;
+  private totalComputedTok = 0;
+  get totalWastedTok(): number { return Math.max(0, this.totalComputedTok - this.totalDeliveredTok); }
   history: TickMetrics[] = [];
   readonly constants: Constants;
   dials: Dials;
@@ -69,6 +73,8 @@ export class Simulation {
     this.runDecode(dt, m);
     this.runWatchdog(m);
     this.finalizeMetrics(m, dt);
+    this.totalDeliveredTok += m.deliveredTok;
+    this.totalComputedTok += m.computedLiveTok + m.computedGhostTok;
     this.history.push(m);
     if (this.history.length > HISTORY_LIMIT) this.history.splice(0, 50_000);
     return m;

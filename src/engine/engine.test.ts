@@ -53,3 +53,19 @@ describe('Simulation core', () => {
     expect(sim.admittedCount).toBe(2);
   });
 });
+
+describe('scenario score counters', () => {
+  it('totals delivered and wasted tokens across the run (wasted = computed - delivered)', () => {
+    const sim = new Simulation({
+      workload: 'chat', clientTimeoutSec: 120, retryStrategy: 'aggressive',
+      numUsers: 6, admissionLimit: 100_000, prefillServers: 6,
+    }, 3);
+    for (let i = 0; i < 4 * 600; i++) sim.tick(0.25);
+    const delivered = sim.history.reduce((a, m) => a + m.deliveredTok, 0);
+    const computed = sim.history.reduce((a, m) => a + m.computedLiveTok + m.computedGhostTok, 0);
+    expect(delivered).toBeGreaterThan(0);
+    expect(sim.totalDeliveredTok).toBeCloseTo(delivered, 3);
+    expect(sim.totalWastedTok).toBeCloseTo(computed - delivered, 3);
+    expect(sim.totalWastedTok).toBeGreaterThanOrEqual(0);
+  });
+});

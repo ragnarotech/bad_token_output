@@ -68,6 +68,8 @@ export default function App() {
             usefulTpm={usefulTpm}
             theoreticalTpm={theoreticalTpm}
             helpTickets={api.sim.totalGiveUps}
+            deliveredTok={api.sim.totalDeliveredTok}
+            wastedTok={api.sim.totalWastedTok}
           />
           <PipelineStrip snap={api.sim.snapshot()} queueTimeoutSec={api.sim.constants.queueTimeoutSec} />
           <ChartsPanel points={points} ghost={api.ghost} durationSec={api.scenario.durationSec} />
