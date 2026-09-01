@@ -6,7 +6,7 @@ This simulator exists to enable to tweak those dials and see how it effectively 
 
 ## Live demo
 
-(link pending first deploy)
+**https://ragnarotech.github.io/bad_token_output/** — static, no install, no keys. Press Play.
 
 ![The collapse, mid-day](docs/screenshot.png)
 
