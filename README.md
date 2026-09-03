@@ -1,12 +1,12 @@
 # The Goodput Simulator
 
-When I deployed a frontier lab's latest large language model onto a minimum stack in an airgap environment with far more demand than supply could service, we experienced interesting behaviors where the actual amount of token output would decrease significantly below the theoretical tokens per minute the model should be able to handle. This cause use to dial many of the parameters we could control to limit the amount of wasted model cycles and maintain a maximum amount of “Good (in)put tokens”. 
+When I deployed a frontier lab's latest large language model onto a minimum stack in an airgap environment with far more demand than supply could service, we experienced interesting behaviors where the actual amount of token output would decrease significantly below the theoretical tokens per minute the model should be able to handle. This caused us to dial many of the parameters we could control to limit the amount of wasted model cycles and maintain a maximum amount of “Good tokens”. 
 We as the devops team defined wasted model cycles when a user request caused GPU cycles to be used (Prefill or Decode/Sample) but did not result in the user’s client from receiving a generated response. This could be from either a client read timeout because the time to first token (TTFT) exceeding the user’s threshold or queue times between prefill and sample exceeding timeouts.  In either case this resulted in the user retrying their request, which could lead to a retry storm causing further degradation of the system.
-This simulator exists to enable to tweak those dials and see how it effectively they can tune the system based on a variety of user workloads.
+This simulator exists tweak those dials and see how it effected the models behavior. The dials can tune the system based on a variety of user workloads.
 
 ## Live demo
 
-**https://ragnarotech.github.io/bad_token_output/** — static, no install, no keys. Press Play.
+**https://ragnarotech.github.io/goodput-simulator/** — static, no install, no keys. Press Play.
 
 ![The collapse, mid-day](docs/screenshot.png)
 
@@ -27,7 +27,7 @@ npm run dev
 npm test
 ```
 
-33 tests across the engine, scenarios, and UI layers, including the collapse invariants that guard the admission-gate behavior described above.
+43 tests across the engine, scenarios, and UI layers, including the collapse invariants that guard the admission-gate behavior described above.
 
 ## Docs
 
